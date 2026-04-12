@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Báo cáo phân tích graph</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="theme.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Báo cáo phân tích đồ thị (Email – URL – IP)</h1>
+        <div class="subtitle">Tổng hợp nhanh các thực thể đáng nghi từ Neo4j. Dùng nút In để lưu PDF; dùng Xuất CSV để mở bằng Excel.</div>
+        <div class="report-actions">
+          <button id="btnPrint" class="btn">In / Lưu PDF</button>
+          <button id="btnCsv" class="btn btn-secondary">Xuất Excel (CSV)</button>
+          <button id="btnBack" class="btn btn-secondary">Quay lại</button>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnTheme" class="btn btn-secondary" type="button" aria-label="Bật tắt giao diện sáng/tối">Tối</button>
+        <div id="status" class="pill"><span class="dot" id="statusDot"></span><span id="statusText">Đang tải…</span></div>
+      </div>
+    </div>
+
+    <div class="card report-grid">
+      <div class="muted" id="meta">—</div>
+
+      <div class="report-kpis" id="kpis"></div>
+
+      <div class="panel">
+        <div class="panel-title">Quy tắc đánh giá (minh họa)</div>
+        <div class="panel-sub">Báo cáo giải thích dựa trên cấu trúc quan hệ trong đồ thị, không phải “kết luận pháp lý”.</div>
+        <div class="panel-body">
+          <div id="rules" class="muted">Đang tải…</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Top pattern dùng chung (shared)</div>
+        <div class="panel-sub">Nhìn nhanh URL/IP được nhiều Email dùng chung để phát hiện chiến dịch/hạ tầng.</div>
+        <div class="panel-body">
+          <div id="topShared" class="muted">Đang tổng hợp…</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Danh sách đánh giá rõ ràng (theo loại)</div>
+        <div class="panel-sub">Hiển thị score/verdict hiện có trong Neo4j + lý do suy ra từ quan hệ (đủ bộ 3, shared URL/IP, số lượng liên kết).</div>
+        <div class="panel-body">
+          <div id="tables" class="muted">Đang tạo bảng…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="report.js"></script>
+</body>
+</html>

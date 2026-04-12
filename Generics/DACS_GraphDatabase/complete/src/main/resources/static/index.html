@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Biểu đồ phát hiện gian lận</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Biểu đồ phát hiện gian lận</h1>
+        <div class="subtitle">
+          Dữ liệu lấy từ Neo4j Aura. Màu node dựa trên <strong>verdict</strong> sau khi chấm điểm rủi ro.
+          Hover để xem chi tiết.
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnTheme" class="btn btn-secondary" type="button" aria-label="Bật tắt giao diện sáng/tối">Tối</button>
+        <div id="status" class="pill"><span class="dot" id="statusDot"></span><span id="statusText">Đang tải…</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="legend" aria-label="Legend">
+          <div class="legend-item"><span class="dot" style="background: green"></span>AN TOÀN</div>
+          <div class="legend-item"><span class="dot" style="background: orange"></span>NGHI NGỜ</div>
+          <div class="legend-item"><span class="dot" style="background: red"></span>GIAN LẬN</div>
+          <div class="legend-item"><span class="dot" style="background: #999"></span>KHÔNG XÁC ĐỊNH</div>
+        </div>
+
+        <div class="actions" aria-label="Quick actions">
+          <div class="actions-title">Tạo dữ liệu (demo)</div>
+          <div class="actions-grid">
+            <input id="inEmail" class="in" placeholder="Email (vd: scam@test.com)" />
+            <input id="inUrl" class="in" placeholder="URL (vd: http://fake-bank.com)" />
+            <input id="inIp" class="in" placeholder="IP (vd: 10.0.0.9)" />
+            <button id="btnLink" class="btn">Tạo / Link</button>
+          </div>
+          <div class="actions-row">
+            <button id="btnSeed" class="btn btn-secondary">Seed demo</button>
+            <button id="btnSaveLayout" class="btn btn-secondary" disabled>Lưu bố cục</button>
+            <button id="btnReport" class="btn btn-secondary">In báo cáo</button>
+            <button id="btnRefresh" class="btn btn-secondary">Tải lại</button>
+          </div>
+          <div class="actions-hint">
+            Nhập <strong>ít nhất 1</strong> trường để tạo node. Nhập <strong>đủ 3</strong> (Email + URL + IP) để tạo quan hệ minh họa.
+            Tip: dùng <strong>Seed demo</strong> để khỏi cần curl.
+          </div>
+        </div>
+
+        <div class="filters" aria-label="Filters">
+          <div class="filters-group">
+            <div class="filters-title">Loại</div>
+            <label class="chk"><input type="checkbox" id="fEmail" checked> Email</label>
+            <label class="chk"><input type="checkbox" id="fUrl" checked> URL</label>
+            <label class="chk"><input type="checkbox" id="fIp" checked> IP</label>
+          </div>
+          <div class="filters-group">
+            <div class="filters-title">Verdict</div>
+            <label class="chk"><input type="checkbox" id="fFraud" checked> FRAUD</label>
+            <label class="chk"><input type="checkbox" id="fSuspicious" checked> SUSPICIOUS</label>
+            <label class="chk"><input type="checkbox" id="fSafe" checked> SAFE</label>
+            <label class="chk"><input type="checkbox" id="fUnknown" checked> UNKNOWN</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="graph">
+          <div id="message" class="empty">Đang tải dữ liệu đồ thị…</div>
+          <svg></svg>
+          <div id="tooltip" class="tooltip"></div>
+        </div>
+
+        <aside class="panel" id="panel" aria-label="Node details">
+          <div class="panel-title">Chi tiết node</div>
+          <div class="panel-sub">Hover để xem nhanh • Click để ghim • Nhấn <strong>Esc</strong> để bỏ ghim</div>
+          <div id="panelBody" class="panel-body">
+            <div class="panel-empty">Chưa chọn node</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+<script src="script.js"></script>
+</body>
+</html>

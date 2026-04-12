@@ -1,0 +1,28 @@
+# Java / JVM
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# Maven
+**/target/
+
+# Gradle
+**/build/
+.gradle/
+
+# IntelliJ / Eclipse
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
