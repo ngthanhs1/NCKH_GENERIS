@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Thông Tin Graph</title>
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body class="page-insights">
+    <div class="container">
+        <header class="header">
+            <div>
+                <h1>Thông Tin Graph</h1>
+                <div class="subtitle">
+                    Trang này tách riêng phần thống kê và danh sách dữ liệu của graph, gồm node type và relation đang có trong hệ thống.
+                </div>
+            </div>
+            <div class="header-actions">
+                <a class="btn btn-secondary" href="/">Quay lại đồ thị</a>
+                <a class="btn btn-secondary" href="/export.html">Import / Export</a>
+                <button id="btnTheme" class="btn btn-secondary" type="button" aria-label="Bật tắt giao diện sáng tối">Tối</button>
+                <div class="pill"><span class="dot" id="statusDot"></span><span id="statusText">Đang tải…</span></div>
+            </div>
+        </header>
+
+        <section class="summary-grid" aria-label="Tổng quan graph insights">
+            <article class="summary-card">
+                <p class="summary-label">Graph</p>
+                <p class="summary-value" id="summary-graph">0 / 0</p>
+                <p class="summary-sub">Nodes / Edges</p>
+            </article>
+            <article class="summary-card">
+                <p class="summary-label">Node Types</p>
+                <p class="summary-value" id="summary-types">0</p>
+                <p class="summary-sub">Số loại node khác nhau</p>
+            </article>
+            <article class="summary-card">
+                <p class="summary-label">Relations</p>
+                <p class="summary-value" id="summary-relations">0</p>
+                <p class="summary-sub">Số loại relation khác nhau</p>
+            </article>
+            <article class="summary-card">
+                <p class="summary-label">Dữ liệu</p>
+                <p class="summary-value" id="summary-size">0 KB</p>
+                <p class="summary-sub">Kích thước phản hồi API</p>
+            </article>
+        </section>
+
+        <div class="card">
+            <div class="row">
+                <div class="actions-box">
+                    <div class="actions-title">Thông tin dữ liệu</div>
+                    <div class="actions-row">
+                        <button class="btn" id="btn-refresh" type="button">Tải lại</button>
+                    </div>
+                    <div class="actions-hint">
+                        Danh sách bên dưới được sinh trực tiếp từ dữ liệu trả về bởi API <strong>/api/graph</strong>, nên khi database thay đổi thì trang này tự cập nhật theo.
+                    </div>
+                </div>
+            </div>
+
+            <section class="analytics-grid">
+                <section class="analytics-card" aria-label="Danh sách node type">
+                    <div class="analytics-head">
+                        <div>
+                            <div class="panel-title">Danh sách node type</div>
+                            <div class="panel-sub">Mọi loại node được sinh động từ dữ liệu trả về API, không cần khai báo trước trong UI.</div>
+                        </div>
+                        <span class="pill subtle"><span id="types-count-tag">0 types</span></span>
+                    </div>
+                    <div id="types-list" class="list-surface empty-state">Chưa có node type để hiển thị.</div>
+                </section>
+
+                <section class="analytics-card" aria-label="Danh sách relation">
+                    <div class="analytics-head">
+                        <div>
+                            <div class="panel-title">Danh sách relation</div>
+                            <div class="panel-sub">Quan hệ giữa các node cũng được render hoàn toàn theo dữ liệu, chỉ dùng trường relation và attributes.</div>
+                        </div>
+                        <span class="pill subtle"><span id="relations-count-tag">0 relations</span></span>
+                    </div>
+                    <div id="relations-list" class="list-surface empty-state">Chưa có relation để hiển thị.</div>
+                </section>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            graph: { nodes: [], edges: [] }
+        };
+
+        const statusText = document.getElementById('statusText');
+        const statusDot = document.getElementById('statusDot');
+
+        const safeJson = async (url) => {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Request failed: ${url} (${response.status})`);
+            }
+            return response.json();
+        };
+
+        const escapeHtml = (value) => String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+
+        const normalizeFacetKey = (value) => String(value || '')
+            .trim()
+            .replaceAll(/\s+/g, ' ')
+            .toUpperCase();
+
+        const buildFacets = (values) => {
+            const facets = new Map();
+
+            values.forEach((rawValue) => {
+                const value = String(rawValue || '').trim();
+                if (!value) {
+                    return;
+                }
+
+                const key = normalizeFacetKey(value);
+                const existing = facets.get(key);
+                if (existing) {
+                    existing.count += 1;
+                    existing.variants.add(value);
+                    if (value.length < existing.label.length) {
+                        existing.label = value;
+                    }
+                    return;
+                }
+
+                facets.set(key, {
+                    key,
+                    label: value,
+                    count: 1,
+                    variants: new Set([value])
+                });
+            });
+
+            return [...facets.values()].sort((left, right) => left.label.localeCompare(right.label, 'vi'));
+        };
+
+        const getTypeFacets = () => buildFacets((state.graph?.nodes || []).map((node) => node.type));
+        const getRelationFacets = () => buildFacets((state.graph?.edges || []).map((edge) => edge.relation));
+
+        const setStatus = (kind, text) => {
+            statusText.textContent = text;
+            statusDot.className = 'dot';
+            statusDot.classList.add(kind === 'ok' ? 'safe' : kind === 'warn' ? 'suspicious' : 'unknown');
+        };
+
+        const renderSummary = () => {
+            const graph = state.graph || { nodes: [], edges: [] };
+            const types = getTypeFacets();
+            const relations = getRelationFacets();
+            const size = new Blob([JSON.stringify(graph)]).size;
+
+            document.getElementById('summary-graph').textContent = `${graph.nodes.length} / ${graph.edges.length}`;
+            document.getElementById('summary-types').textContent = types.length;
+            document.getElementById('summary-relations').textContent = relations.length;
+            document.getElementById('summary-size').textContent = `${(size / 1024).toFixed(1)} KB`;
+        };
+
+        const renderTypesList = () => {
+            const container = document.getElementById('types-list');
+            const tag = document.getElementById('types-count-tag');
+            const facets = getTypeFacets();
+
+            tag.textContent = `${facets.length} types`;
+
+            if (!facets.length) {
+                container.className = 'list-surface empty-state';
+                container.textContent = 'Chưa có node type để hiển thị.';
+                return;
+            }
+
+            container.className = 'list-surface';
+            container.innerHTML = facets.map((facet) => `
+                <div class="facet-card">
+                    <div class="facet-card-head">
+                        <span class="tag muted">TYPE</span>
+                        <span class="facet-code">${escapeHtml(facet.label)}</span>
+                    </div>
+                    <p class="facet-description">Nhóm type này được tạo động từ dữ liệu graph hiện có, không cần khai báo trước trong giao diện.</p>
+                    <p class="facet-meta">Số lượng: ${facet.count} node${facet.variants.size > 1 ? ` • Biến thể: ${escapeHtml([...facet.variants].join(', '))}` : ''}</p>
+                </div>
+            `).join('');
+        };
+
+        const renderRelationsList = () => {
+            const container = document.getElementById('relations-list');
+            const tag = document.getElementById('relations-count-tag');
+            const facets = getRelationFacets();
+
+            tag.textContent = `${facets.length} relations`;
+
+            if (!facets.length) {
+                container.className = 'list-surface empty-state';
+                container.textContent = 'Chưa có relation để hiển thị.';
+                return;
+            }
+
+            container.className = 'list-surface';
+            container.innerHTML = facets.map((facet) => `
+                <div class="facet-card">
+                    <div class="facet-card-head">
+                        <span class="tag muted">RELATION</span>
+                        <span class="facet-code">${escapeHtml(facet.label)}</span>
+                    </div>
+                    <p class="facet-description">Nhóm relation này được sinh động từ tập edges trả về bởi API graph.</p>
+                    <p class="facet-meta">Số lượng: ${facet.count} cạnh${facet.variants.size > 1 ? ` • Biến thể: ${escapeHtml([...facet.variants].join(', '))}` : ''}</p>
+                </div>
+            `).join('');
+        };
+
+        const loadInsights = async () => {
+            setStatus('loading', 'Đang tải dữ liệu...');
+            try {
+                const graphPayload = await safeJson('/api/graph');
+                state.graph = graphPayload.data || { nodes: [], edges: [] };
+                renderSummary();
+                renderTypesList();
+                renderRelationsList();
+                setStatus('ok', 'Sẵn sàng');
+            } catch (error) {
+                console.error(error);
+                state.graph = { nodes: [], edges: [] };
+                renderSummary();
+                renderTypesList();
+                renderRelationsList();
+                setStatus('warn', 'Tải dữ liệu thất bại');
+            }
+        };
+
+        document.getElementById('btn-refresh').addEventListener('click', loadInsights);
+        loadInsights();
+    </script>
+</body>
+
+</html>

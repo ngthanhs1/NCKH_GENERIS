@@ -216,80 +216,35 @@
         };
 
         const buildSamplePayload = (existingGraph = currentPayload) => {
-            const existingNodeIds = new Set((existingGraph?.nodes || [])
-                .map((node) => normalizeId(node?.id))
-                .filter(Boolean));
-
-            const randomSuffix = () => {
-                const stamp = Date.now().toString(36).slice(-4).toUpperCase();
-                const number = Math.floor(1000 + Math.random() * 9000);
-                return `${stamp}${number}`;
-            };
-
-            let suffix = randomSuffix();
-            let guard = 0;
-            while (
-                (existingNodeIds.has(`ST_${suffix}`)
-                    || existingNodeIds.has(`CR_${suffix}`)
-                    || existingNodeIds.has(`RM_${suffix}`))
-                && guard < 20
-            ) {
-                suffix = randomSuffix();
-                guard += 1;
-            }
-
-            const studentNames = ['Linh', 'An', 'Minh', 'Trang', 'Khoa', 'Vy'];
-            const courseTitles = ['Graph Theory', 'Data Mining', 'AI Fundamentals', 'Database Systems'];
-            const buildings = ['A', 'B', 'C', 'D'];
-            const schedules = ['Mon 09:00', 'Tue 13:30', 'Wed 15:00', 'Thu 08:00'];
-            const semesters = ['2026A', '2026B', '2027A'];
-
-            const pick = (items) => items[Math.floor(Math.random() * items.length)];
-
-            const studentId = `ST_${suffix}`;
-            const courseId = `CR_${suffix}`;
-            const roomId = `RM_${suffix}`;
-
             return {
                 nodes: [
-                    {
-                        id: studentId,
-                        type: 'STUDENT',
-                        attributes: {
-                            name: pick(studentNames),
-                            year: 1 + Math.floor(Math.random() * 4)
-                        }
-                    },
-                    {
-                        id: courseId,
-                        type: 'COURSE',
-                        attributes: {
-                            title: pick(courseTitles),
-                            credits: 2 + Math.floor(Math.random() * 3)
-                        }
-                    },
-                    {
-                        id: roomId,
-                        type: 'ROOM',
-                        attributes: {
-                            building: pick(buildings),
-                            number: String(100 + Math.floor(Math.random() * 500))
-                        }
-                    }
+                    { id: "P101", type: "PERSON", attributes: { name: "Nguyễn Văn Thành", city: "Hà Nội", role: "Researcher" } },
+                    { id: "P102", type: "PERSON", attributes: { name: "Hoàng Thị Ngọc", city: "Hà Nội", role: "Developer" } },
+                    { id: "P103", type: "PERSON", attributes: { name: "Trần Văn Nam", city: "Đà Nẵng", role: "Analyst" } },
+                    { id: "ACC_01", type: "ACCOUNT", attributes: { username: "thanh_nv", status: "ACTIVE", balance: 5000 } },
+                    { id: "ACC_02", type: "ACCOUNT", attributes: { username: "ngoc_ht", status: "ACTIVE", balance: 7500 } },
+                    { id: "ACC_03", type: "ACCOUNT", attributes: { username: "nam_tv", status: "SUSPICIOUS", balance: 12000 } },
+                    { id: "DEV_X1", type: "DEVICE", attributes: { os: "Android 14", brand: "Samsung S24", ip: "192.168.1.50" } },
+                    { id: "DEV_X2", type: "DEVICE", attributes: { os: "iOS 17", brand: "iPhone 15 Pro", ip: "192.168.1.50" } },
+                    { id: "TX_9001", type: "TRANSACTION", attributes: { amount: 1500, currency: "USD", timestamp: "2026-07-23 10:15" } },
+                    { id: "TX_9002", type: "TRANSACTION", attributes: { amount: 3200, currency: "USD", timestamp: "2026-07-23 11:30" } },
+                    { id: "MER_ECOM", type: "MERCHANT", attributes: { name: "Shopee Mall", category: "E-Commerce" } },
+                    { id: "MER_GAMING", type: "MERCHANT", attributes: { name: "Steam Store", category: "Digital Goods" } }
                 ],
                 edges: [
-                    {
-                        from: studentId,
-                        to: courseId,
-                        relation: 'ENROLLED_IN',
-                        attributes: { semester: pick(semesters) }
-                    },
-                    {
-                        from: courseId,
-                        to: roomId,
-                        relation: 'TAUGHT_IN',
-                        attributes: { schedule: pick(schedules) }
-                    }
+                    { from: "P101", to: "ACC_01", relation: "OWNS_ACCOUNT", attributes: { createdDate: "2024-01-15" } },
+                    { from: "P102", to: "ACC_02", relation: "OWNS_ACCOUNT", attributes: { createdDate: "2024-02-20" } },
+                    { from: "P103", to: "ACC_03", relation: "OWNS_ACCOUNT", attributes: { createdDate: "2024-03-10" } },
+                    { from: "ACC_01", to: "DEV_X1", relation: "LOGGED_IN_DEVICE", attributes: { lastLogin: "2026-07-23" } },
+                    { from: "ACC_02", to: "DEV_X1", relation: "LOGGED_IN_DEVICE", attributes: { lastLogin: "2026-07-23" } },
+                    { from: "ACC_03", to: "DEV_X1", relation: "LOGGED_IN_DEVICE", attributes: { lastLogin: "2026-07-22" } },
+                    { from: "ACC_03", to: "DEV_X2", relation: "LOGGED_IN_DEVICE", attributes: { lastLogin: "2026-07-23" } },
+                    { from: "ACC_01", to: "TX_9001", relation: "INITIATED_PAYMENT", attributes: { channel: "Web" } },
+                    { from: "ACC_03", to: "TX_9002", relation: "INITIATED_PAYMENT", attributes: { channel: "Mobile App" } },
+                    { from: "TX_9001", to: "MER_ECOM", relation: "PAYMENT_TO", attributes: { status: "COMPLETED" } },
+                    { from: "TX_9002", to: "MER_GAMING", relation: "PAYMENT_TO", attributes: { status: "COMPLETED" } },
+                    { from: "P101", to: "P102", relation: "ASSOCIATED_WITH", attributes: { type: "CO_RESEARCHER" } },
+                    { from: "P102", to: "P103", relation: "ASSOCIATED_WITH", attributes: { type: "COLLEAGUE" } }
                 ]
             };
         };

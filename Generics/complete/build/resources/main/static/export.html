@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Generic Graph Import / Export</title>
+    <script src="/theme.js"></script>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body class="page-export">
+    <div class="container">
+        <header class="header">
+            <div>
+                <h1>Generic Graph Import / Export</h1>
+                <div class="subtitle">
+                    Trang này cho phép kiểm tra, tải về và nhập vào dữ liệu graph tổng quát dưới dạng JSON mà không phụ thuộc vào domain cụ thể.
+                </div>
+            </div>
+            <div class="header-actions">
+                <a class="btn btn-secondary" href="/">Quay lại explorer</a>
+                <button id="btnTheme" class="btn btn-secondary" type="button" aria-label="Bật tắt giao diện sáng tối">Tối</button>
+            </div>
+        </header>
+
+        <section class="summary-grid" aria-label="Tổng quan export">
+            <article class="summary-card">
+                <p class="summary-label">Graph</p>
+                <p class="summary-value" id="summary-graph">0 / 0</p>
+                <p class="summary-sub">Nodes / Edges</p>
+            </article>
+            <article class="summary-card">
+                <p class="summary-label">Node Types</p>
+                <p class="summary-value" id="summary-types">0</p>
+                <p class="summary-sub">Số loại node</p>
+            </article>
+            <article class="summary-card">
+                <p class="summary-label">Relations</p>
+                <p class="summary-value" id="summary-relations">0</p>
+                <p class="summary-sub">Số loại relation</p>
+            </article>
+            <article class="summary-card">
+                <p class="summary-label">Payload</p>
+                <p class="summary-value" id="summary-size">0 KB</p>
+                <p class="summary-sub">Kích thước JSON</p>
+            </article>
+        </section>
+
+        <div class="card">
+            <div class="row">
+                <div class="actions-box">
+                    <div class="actions-title">Import / Export dữ liệu</div>
+                    <div class="actions-row">
+                        <button class="btn" id="btn-refresh" type="button">Tải lại</button>
+                        <button class="btn btn-secondary" id="btn-download" type="button">Tải file JSON</button>
+                        <button class="btn btn-secondary" id="btn-load-example" type="button">Nạp ví dụ</button>
+                    </div>
+                    <div class="actions-hint">
+                        Dữ liệu được lấy trực tiếp từ API <strong>/api/graph</strong>. Bạn cũng có thể dán một payload mới theo cấu trúc generic để nối thêm hoặc ghi đè dữ liệu hiện tại.
+                    </div>
+                </div>
+                <div class="pill"><span class="dot safe"></span><span id="statusText">Đang tải…</span></div>
+            </div>
+
+            <section class="analytics-card" aria-label="Import graph payload">
+                <div class="analytics-head">
+                    <div>
+                        <div class="panel-title">Import graph payload</div>
+                        <div class="panel-sub">Định dạng đầu vào đúng theo GraphData với hai mảng <strong>nodes</strong> và <strong>edges</strong>.</div>
+                    </div>
+                    <span class="pill subtle">POST /api/graph/import</span>
+                </div>
+                <div class="import-controls">
+                    <label class="chk"><input id="replace-mode" type="checkbox"> Ghi đè dữ liệu hiện tại trước khi import</label>
+                    <button class="btn" id="btn-import" type="button">Import graph</button>
+                </div>
+                <textarea id="import-input" class="json-textarea" spellcheck="false">{
+  "nodes": [],
+  "edges": []
+}</textarea>
+                <div id="import-feedback" class="panel-sub">Bạn có thể dán dataset mới vào đây rồi import trực tiếp từ giao diện.</div>
+            </section>
+
+            <div class="analytics-grid">
+                <section class="analytics-card" aria-label="Node types">
+                    <div class="analytics-head">
+                        <div>
+                            <div class="panel-title">Node types</div>
+                            <div class="panel-sub">Danh sách loại node được suy ra hoàn toàn từ payload.</div>
+                        </div>
+                    </div>
+                    <div id="types-list" class="list-surface empty-state">Chưa có node type để hiển thị.</div>
+                </section>
+
+                <section class="analytics-card" aria-label="JSON payload">
+                    <div class="analytics-head">
+                        <div>
+                            <div class="panel-title">JSON payload</div>
+                            <div class="panel-sub">Toàn bộ dữ liệu graph tổng quát để kiểm chứng cấu trúc nodes và edges.</div>
+                        </div>
+                    </div>
+                    <pre id="json-output">{}</pre>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statusText = document.getElementById('statusText');
+        const jsonOutput = document.getElementById('json-output');
+        const importInput = document.getElementById('import-input');
+        const importFeedback = document.getElementById('import-feedback');
+        let currentPayload = { nodes: [], edges: [] };
+
+        const safeJson = async (url) => {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Request failed: ${url} (${response.status})`);
+            }
+            return response.json();
+        };
+
+        const postJson = async (url, payload) => {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+            const body = contentType.includes('application/json')
+                ? await response.json()
+                : await response.text();
+
+            if (!response.ok) {
+                const errorMessage = typeof body === 'string'
+                    ? body
+                    : body?.message || body?.details || `Request failed: ${url} (${response.status})`;
+                throw new Error(errorMessage);
+            }
+
+            return body;
+        };
+
+        const escapeHtml = (value) => String(value)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+
+        const toPrettyJson = (value) => {
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch {
+                return '{}';
+            }
+        };
+
+        const normalizeId = (value) => String(value ?? '').trim();
+
+        const buildEdgeKey = (edge) => {
+            const from = normalizeId(edge?.from);
+            const to = normalizeId(edge?.to);
+            const relation = String(edge?.relation ?? '').trim().toUpperCase();
+            return `${from}|${to}|${relation}`;
+        };
+
+        const buildFacets = (values) => {
+            const counts = new Map();
+            values.forEach((value) => {
+                const key = String(value || '').trim();
+                if (!key) return;
+                counts.set(key, (counts.get(key) || 0) + 1);
+            });
+            return [...counts.entries()].sort((left, right) => left[0].localeCompare(right[0], 'vi'));
+        };
+
+        const renderSummary = () => {
+            const nodes = currentPayload.nodes || [];
+            const edges = currentPayload.edges || [];
+            const types = buildFacets(nodes.map((node) => node.type));
+            const relations = buildFacets(edges.map((edge) => edge.relation));
+            const size = new Blob([toPrettyJson(currentPayload)]).size;
+
+            document.getElementById('summary-graph').textContent = `${nodes.length} / ${edges.length}`;
+            document.getElementById('summary-types').textContent = types.length;
+            document.getElementById('summary-relations').textContent = relations.length;
+            document.getElementById('summary-size').textContent = `${(size / 1024).toFixed(1)} KB`;
+        };
+
+        const renderTypes = () => {
+            const container = document.getElementById('types-list');
+            const types = buildFacets((currentPayload.nodes || []).map((node) => node.type));
+            if (!types.length) {
+                container.className = 'list-surface empty-state';
+                container.textContent = 'Chưa có node type để hiển thị.';
+                return;
+            }
+
+            container.className = 'list-surface';
+            container.innerHTML = types.map(([type, count]) => `
+                <div class="facet-card">
+                    <div class="facet-card-head">
+                        <span class="tag muted">TYPE</span>
+                        <span class="facet-code">${escapeHtml(type)}</span>
+                    </div>
+                    <p class="facet-meta">Số lượng: ${count} node</p>
+                </div>
+            `).join('');
+        };
+
+        const renderJson = () => {
+            jsonOutput.textContent = toPrettyJson(currentPayload);
+        };
+
+        const buildSamplePayload = (existingGraph = currentPayload) => {
+            const existingNodeIds = new Set((existingGraph?.nodes || [])
+                .map((node) => normalizeId(node?.id))
+                .filter(Boolean));
+
+            const randomSuffix = () => {
+                const stamp = Date.now().toString(36).slice(-4).toUpperCase();
+                const number = Math.floor(1000 + Math.random() * 9000);
+                return `${stamp}${number}`;
+            };
+
+            let suffix = randomSuffix();
+            let guard = 0;
+            while (
+                (existingNodeIds.has(`ST_${suffix}`)
+                    || existingNodeIds.has(`CR_${suffix}`)
+                    || existingNodeIds.has(`RM_${suffix}`))
+                && guard < 20
+            ) {
+                suffix = randomSuffix();
+                guard += 1;
+            }
+
+            const studentNames = ['Linh', 'An', 'Minh', 'Trang', 'Khoa', 'Vy'];
+            const courseTitles = ['Graph Theory', 'Data Mining', 'AI Fundamentals', 'Database Systems'];
+            const buildings = ['A', 'B', 'C', 'D'];
+            const schedules = ['Mon 09:00', 'Tue 13:30', 'Wed 15:00', 'Thu 08:00'];
+            const semesters = ['2026A', '2026B', '2027A'];
+
+            const pick = (items) => items[Math.floor(Math.random() * items.length)];
+
+            const studentId = `ST_${suffix}`;
+            const courseId = `CR_${suffix}`;
+            const roomId = `RM_${suffix}`;
+
+            return {
+                nodes: [
+                    {
+                        id: studentId,
+                        type: 'STUDENT',
+                        attributes: {
+                            name: pick(studentNames),
+                            year: 1 + Math.floor(Math.random() * 4)
+                        }
+                    },
+                    {
+                        id: courseId,
+                        type: 'COURSE',
+                        attributes: {
+                            title: pick(courseTitles),
+                            credits: 2 + Math.floor(Math.random() * 3)
+                        }
+                    },
+                    {
+                        id: roomId,
+                        type: 'ROOM',
+                        attributes: {
+                            building: pick(buildings),
+                            number: String(100 + Math.floor(Math.random() * 500))
+                        }
+                    }
+                ],
+                edges: [
+                    {
+                        from: studentId,
+                        to: courseId,
+                        relation: 'ENROLLED_IN',
+                        attributes: { semester: pick(semesters) }
+                    },
+                    {
+                        from: courseId,
+                        to: roomId,
+                        relation: 'TAUGHT_IN',
+                        attributes: { schedule: pick(schedules) }
+                    }
+                ]
+            };
+        };
+
+        const buildAppendPayloadWithoutDuplicates = (payload, existingGraph) => {
+            const existingNodeIds = new Set((existingGraph?.nodes || [])
+                .map((node) => normalizeId(node?.id))
+                .filter(Boolean));
+            const existingEdgeKeys = new Set((existingGraph?.edges || [])
+                .map((edge) => buildEdgeKey(edge))
+                .filter((key) => key !== '||'));
+
+            const uniquePayloadNodeIds = new Set();
+            const dedupedNodes = [];
+
+            (payload.nodes || []).forEach((node) => {
+                const nodeId = normalizeId(node?.id);
+                if (!nodeId || existingNodeIds.has(nodeId) || uniquePayloadNodeIds.has(nodeId)) {
+                    return;
+                }
+                uniquePayloadNodeIds.add(nodeId);
+                dedupedNodes.push(node);
+            });
+
+            const knownNodeIds = new Set([...existingNodeIds, ...uniquePayloadNodeIds]);
+            const uniquePayloadEdgeKeys = new Set();
+            const dedupedEdges = [];
+
+            (payload.edges || []).forEach((edge) => {
+                const fromId = normalizeId(edge?.from);
+                const toId = normalizeId(edge?.to);
+                const relation = String(edge?.relation ?? '').trim();
+                if (!fromId || !toId || !relation) {
+                    return;
+                }
+                if (!knownNodeIds.has(fromId) || !knownNodeIds.has(toId)) {
+                    return;
+                }
+
+                const edgeKey = buildEdgeKey(edge);
+                if (existingEdgeKeys.has(edgeKey) || uniquePayloadEdgeKeys.has(edgeKey)) {
+                    return;
+                }
+
+                uniquePayloadEdgeKeys.add(edgeKey);
+                dedupedEdges.push(edge);
+            });
+
+            return {
+                payload: {
+                    nodes: dedupedNodes,
+                    edges: dedupedEdges
+                },
+                skippedNodes: (payload.nodes || []).length - dedupedNodes.length,
+                skippedEdges: (payload.edges || []).length - dedupedEdges.length
+            };
+        };
+
+        const importGraph = async () => {
+            statusText.textContent = 'Đang import…';
+            importFeedback.textContent = 'Đang gửi payload lên backend...';
+            try {
+                const payload = JSON.parse(importInput.value || '{}');
+
+                if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+                    throw new Error('Payload import phải là một object JSON chứa nodes và edges.');
+                }
+
+                if (payload.nodes !== undefined && !Array.isArray(payload.nodes)) {
+                    throw new Error('Trường nodes phải là một mảng.');
+                }
+
+                if (payload.edges !== undefined && !Array.isArray(payload.edges)) {
+                    throw new Error('Trường edges phải là một mảng.');
+                }
+
+                const replace = document.getElementById('replace-mode').checked;
+                let payloadToImport = {
+                    nodes: payload.nodes || [],
+                    edges: payload.edges || []
+                };
+                let dedupedInfo = null;
+
+                if (!replace) {
+                    dedupedInfo = buildAppendPayloadWithoutDuplicates(payloadToImport, currentPayload);
+                    payloadToImport = dedupedInfo.payload;
+
+                    if (!payloadToImport.nodes.length && !payloadToImport.edges.length) {
+                        importFeedback.textContent = 'Không có dữ liệu mới để import (mọi node/edge đều đã tồn tại hoặc trùng trong payload).';
+                        statusText.textContent = 'Không có thay đổi';
+                        return;
+                    }
+                }
+
+                const response = await postJson(`/api/graph/import?replace=${replace ? 'true' : 'false'}`, payloadToImport);
+                const result = response.data || { importedNodes: 0, importedEdges: 0, replaceMode: false };
+                const skippedText = dedupedInfo
+                    ? `; bỏ qua ${dedupedInfo.skippedNodes} node và ${dedupedInfo.skippedEdges} edge bị trùng`
+                    : '';
+                importFeedback.textContent = `Import thành công: ${result.importedNodes} nodes, ${result.importedEdges} edges${result.replaceMode ? ' (replace mode)' : ' (append mode)'}${skippedText}.`;
+                await loadExport();
+            } catch (error) {
+                console.error(error);
+                importFeedback.textContent = `Import thất bại: ${error.message}`;
+                statusText.textContent = 'Import thất bại';
+            }
+        };
+
+        const loadExport = async () => {
+            statusText.textContent = 'Đang tải…';
+            try {
+                const graphPayload = await safeJson('/api/graph');
+                currentPayload = graphPayload.data || { nodes: [], edges: [] };
+                renderSummary();
+                renderTypes();
+                renderJson();
+                statusText.textContent = 'Sẵn sàng';
+            } catch (error) {
+                console.error(error);
+                currentPayload = { nodes: [], edges: [] };
+                renderSummary();
+                renderTypes();
+                renderJson();
+                statusText.textContent = 'Tải thất bại';
+            }
+        };
+
+        document.getElementById('btn-refresh').addEventListener('click', loadExport);
+        document.getElementById('btn-download').addEventListener('click', () => {
+            const blob = new Blob([toPrettyJson(currentPayload)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'generic-graph-data.json';
+            link.click();
+            URL.revokeObjectURL(url);
+        });
+        document.getElementById('btn-load-example').addEventListener('click', () => {
+            importInput.value = toPrettyJson(buildSamplePayload(currentPayload));
+            importFeedback.textContent = 'Đã nạp ví dụ ngẫu nhiên STUDENT / COURSE / ROOM (không trùng dữ liệu hiện có).';
+        });
+        document.getElementById('btn-import').addEventListener('click', importGraph);
+
+        loadExport();
+    </script>
+</body>
+
+</html>
