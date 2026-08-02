@@ -46,6 +46,13 @@ public class GraphApiController {
         return ApiResponse.ok(graphQueryService.importGraph(graphData, replace));
     }
 
+    @GetMapping("/subgraph")
+    public ApiResponse<GraphData<NodeDTO<Map<String, Object>>, EdgeDTO<Map<String, Object>>>> getSubGraph(
+            @RequestParam String nodeId,
+            @RequestParam(name = "depth", defaultValue = "2") int depth) {
+        return ApiResponse.ok(graphQueryService.fetchSubGraph(nodeId, depth));
+    }
+
     @DeleteMapping("/nodes/{nodeId}")
     public ApiResponse<NodeDeleteResult> deleteNode(@PathVariable String nodeId) {
         return ApiResponse.ok(graphQueryService.deleteNodeById(nodeId));

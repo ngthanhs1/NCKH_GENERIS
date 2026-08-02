@@ -108,4 +108,16 @@ class GraphApiControllerTest {
                                 .andExpect(jsonPath("$.data.nodeId").value("p1"))
                                 .andExpect(jsonPath("$.data.deletedNodes").value(1));
         }
+
+    @Test
+    void getSubGraph_returnsKHopSubgraphData() throws Exception {
+        var nodes = List.of(new NodeDTO<Map<String, Object>>("n1", "Person", Map.of("name", "Alice")));
+        var edges = List.of(new EdgeDTO<Map<String, Object>>("n1", "n2", "KNOWS", Map.of()));
+        when(graphQueryService.fetchSubGraph("n1", 2)).thenReturn(new GraphData<>(nodes, edges));
+
+        mockMvc.perform(get("/api/graph/subgraph").param("nodeId", "n1").param("depth", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("OK"))
+                .andExpect(jsonPath("$.data.nodes[0].id").value("n1"));
+    }
 }

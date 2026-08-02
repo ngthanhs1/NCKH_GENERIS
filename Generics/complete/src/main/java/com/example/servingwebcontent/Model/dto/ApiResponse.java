@@ -12,4 +12,8 @@ public record ApiResponse<T>(T data, String message) {
 	public static <R> ApiResponse<R> ok(R data) {
 		return new ApiResponse<>(data, "OK");
 	}
+
+	public static <R> ApiResponse<R> ok(R data, String message) {
+		return new ApiResponse<>(data, message);
+	}
 }

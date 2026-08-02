@@ -54,4 +54,17 @@ public class DetectionApiController {
                 )
         );
     }
+
+    @org.springframework.web.bind.annotation.PostMapping("/switch-scenario")
+    public ApiResponse<Map<String, Object>> switchScenario(@org.springframework.web.bind.annotation.RequestParam String scenarioKey) {
+        detectionScenarioRegistry.setActiveScenario(scenarioKey);
+        return ApiResponse.ok(
+                Map.of(
+                        "activeScenario", detectionScenarioRegistry.activeScenario().key(),
+                        "details", detectionScenarioRegistry.activeScenario().describe(),
+                        "availableScenarios", detectionScenarioRegistry.availableScenarios()
+                ),
+                "Đã chuyển đổi kịch bản phân tích thành công: " + detectionScenarioRegistry.activeScenario().displayName()
+        );
+    }
 }

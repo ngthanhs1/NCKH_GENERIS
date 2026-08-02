@@ -16,6 +16,7 @@ public class DetectionScenarioRegistry {
 
     private final DetectionScenarioProperties properties;
     private final Map<String, DetectionScenario> scenariosByKey;
+    private volatile String currentActiveKey = null;
 
     public DetectionScenarioRegistry(
             DetectionScenarioProperties properties,
@@ -27,8 +28,17 @@ public class DetectionScenarioRegistry {
         }
     }
 
+    public synchronized void setActiveScenario(String scenarioKey) {
+        String normalizedKey = normalize(scenarioKey);
+        if (!scenariosByKey.containsKey(normalizedKey)) {
+            throw new IllegalArgumentException("Kịch bản (Scenario) không tồn tại: '" + scenarioKey + "'. Danh sách khả dụng: " + scenariosByKey.keySet());
+        }
+        this.currentActiveKey = normalizedKey;
+    }
+
     public DetectionScenario activeScenario() {
-        DetectionScenario scenario = scenariosByKey.get(normalize(properties.getActiveScenario()));
+        String targetKey = currentActiveKey != null ? currentActiveKey : properties.getActiveScenario();
+        DetectionScenario scenario = scenariosByKey.get(normalize(targetKey));
         if (scenario != null) {
             return scenario;
         }

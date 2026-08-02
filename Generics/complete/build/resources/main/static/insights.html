@@ -85,6 +85,19 @@
                     <div id="relations-list" class="list-surface empty-state">Chưa có relation để hiển thị.</div>
                 </section>
             </section>
+
+            <div class="analytics-grid" style="margin-top:20px;">
+                <section class="analytics-card" aria-label="Kịch bản & Mẫu phát hiện">
+                    <div class="analytics-head">
+                        <div>
+                            <div class="panel-title">Phân tích Graph Analytics & Detection Patterns</div>
+                            <div class="panel-sub">Kết quả chạy kịch bản phân tích chủ đạo (active scenario) trên đồ thị hiện tại.</div>
+                        </div>
+                        <span class="pill subtle" id="active-scenario-tag">Scenario</span>
+                    </div>
+                    <div id="patterns-list" class="list-surface empty-state">Đang tải thông tin phân tích...</div>
+                </section>
+            </div>
         </div>
     </div>
 
@@ -220,6 +233,36 @@
             `).join('');
         };
 
+        const renderPatternsList = (patternsRes, profileRes) => {
+            const container = document.getElementById('patterns-list');
+            const scenarioTag = document.getElementById('active-scenario-tag');
+
+            const profile = profileRes?.data || {};
+            const activeKey = profile.activeScenario || 'NONE';
+            scenarioTag.textContent = `Scenario: ${activeKey}`;
+
+            const data = patternsRes?.data || {};
+            const patterns = data.patterns || [];
+
+            if (!patterns.length) {
+                container.className = 'list-surface empty-state';
+                container.textContent = 'Chưa phát hiện pattern nghi vấn hoặc cụm nổi bật trong kịch bản hiện tại.';
+                return;
+            }
+
+            container.className = 'list-surface';
+            container.innerHTML = patterns.map((p) => `
+                <div class="facet-card">
+                    <div class="facet-card-head">
+                        <span class="tag ${p.severity === 'HIGH' ? 'danger' : p.severity === 'MEDIUM' ? 'warning' : 'muted'}">${escapeHtml(p.severity)}</span>
+                        <span class="facet-code">${escapeHtml(p.ruleCode)}</span>
+                    </div>
+                    <p class="facet-description">${escapeHtml(p.description)}</p>
+                    <p class="facet-meta">Các nút liên quan: <strong>${escapeHtml((p.relatedNodeIds || []).join(', '))}</strong></p>
+                </div>
+            `).join('');
+        };
+
         const loadInsights = async () => {
             setStatus('loading', 'Đang tải dữ liệu...');
             try {
@@ -228,6 +271,15 @@
                 renderSummary();
                 renderTypesList();
                 renderRelationsList();
+
+                try {
+                    const profileRes = await safeJson('/api/detection/profile');
+                    const patternsRes = await safeJson('/api/detection/patterns');
+                    renderPatternsList(patternsRes, profileRes);
+                } catch (e) {
+                    console.error('Không thể tải detection patterns', e);
+                }
+
                 setStatus('ok', 'Sẵn sàng');
             } catch (error) {
                 console.error(error);

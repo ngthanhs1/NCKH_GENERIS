@@ -125,4 +125,22 @@ class DetectionApiControllerTest {
                 .andExpect(jsonPath("$.data.details.displayName").value("Association Graph Scenario"))
                 .andExpect(jsonPath("$.data.availableScenarios[0].key").value("ASSOCIATION_GRAPH"));
     }
+
+    @Test
+    void switchScenario_updatesActiveScenarioAndReturnsProfile() throws Exception {
+        doReturn("EMAIL_URL_IP").when(detectionScenario).key();
+        doReturn(Map.of(
+                "scenario", "EMAIL_URL_IP",
+                "displayName", "Email - URL - IP Scenario"
+        )).when(detectionScenario).describe();
+        doReturn(detectionScenario).when(detectionScenarioRegistry).activeScenario();
+        doReturn(List.of(
+                Map.of("key", "ASSOCIATION_GRAPH", "displayName", "Association Graph Scenario"),
+                Map.of("key", "EMAIL_URL_IP", "displayName", "Email - URL - IP Scenario")
+        )).when(detectionScenarioRegistry).availableScenarios();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/detection/switch-scenario").param("scenarioKey", "EMAIL_URL_IP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.activeScenario").value("EMAIL_URL_IP"));
+    }
 }

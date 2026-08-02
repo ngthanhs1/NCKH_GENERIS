@@ -21,6 +21,12 @@
                 </div>
             </div>
             <div class="header-actions">
+                <div class="scenario-selector-wrap" style="display:flex;align-items:center;gap:6px;">
+                    <label for="scenario-select" style="font-size:0.8rem;font-weight:600;">Scenario:</label>
+                    <select id="scenario-select" class="btn btn-secondary" style="padding:4px 8px;font-size:0.85rem;cursor:pointer;">
+                        <option value="">Đang tải...</option>
+                    </select>
+                </div>
                 <a class="btn btn-secondary" href="/export.html">Import / Export</a>
                 <a class="btn btn-secondary" href="/insights.html">Thông tin graph</a>
                 <button id="btnTheme" class="btn btn-secondary" type="button" aria-label="Bật tắt giao diện sáng tối">Tối</button>
@@ -63,7 +69,7 @@
                 <div class="actions-box" aria-label="Quick actions">
                     <div class="actions-title">Điều khiển đồ thị</div>
                     <div class="actions-row">
-                        <button class="btn" id="btn-refresh" type="button">Tải lại</button>
+                        <button class="btn" id="btn-refresh" type="button">Tải toàn bộ</button>
                         <button class="btn btn-secondary" id="btn-fit" type="button">Fit graph</button>
                         <button class="btn btn-secondary" id="btn-reset" type="button">Reset</button>
                         <button class="btn btn-secondary" id="btn-zoom-in" type="button">Zoom +</button>
@@ -72,7 +78,7 @@
                     </div>
                     <div class="actions-hint">
                         Frontend chỉ đọc <strong>id</strong>, <strong>type</strong>, <strong>relation</strong> và
-                        <strong>attributes</strong> từ API graph. Khi dữ liệu thay đổi, giao diện vẫn hoạt động mà không cần sửa mã.
+                        <strong>attributes</strong> từ API graph. Bạn có thể chọn k-hop Subgraph để khám phá bán kính nút.
                     </div>
                 </div>
 
@@ -118,7 +124,8 @@
                             <div class="panel-title">Chi tiết đối tượng</div>
                             <div class="panel-sub">Click node hoặc edge để xem dữ liệu gốc. Panel này không có field cố định, toàn bộ thuộc tính được hiển thị dạng JSON.</div>
                         </div>
-                        <div class="panel-actions">
+                        <div class="panel-actions" style="display:flex;gap:4px;">
+                            <button class="btn btn-secondary" id="btn-khop-subgraph" type="button" disabled>Lân cận (k-hop)</button>
                             <button class="btn btn-danger" id="btn-delete-node" type="button" disabled>Xóa node</button>
                         </div>
                     </div>
@@ -350,8 +357,40 @@
             }).join('');
         };
 
+        const khopSubgraphButton = document.getElementById('btn-khop-subgraph');
+        const scenarioSelect = document.getElementById('scenario-select');
+
+        const postJson = async (url) => {
+            const response = await fetch(url, { method: 'POST' });
+            if (!response.ok) {
+                throw new Error(`Request failed: ${url} (${response.status})`);
+            }
+            return response.json();
+        };
+
         const updateDeleteButtonState = () => {
             deleteNodeButton.disabled = !state.selectedNodeId;
+            if (khopSubgraphButton) {
+                khopSubgraphButton.disabled = !state.selectedNodeId;
+            }
+        };
+
+        const loadProfileAndScenarios = async () => {
+            if (!scenarioSelect) return;
+            try {
+                const profileRes = await safeJson('/api/detection/profile');
+                const profile = profileRes.data || {};
+                const active = profile.activeScenario;
+                const available = profile.availableScenarios || [];
+
+                scenarioSelect.innerHTML = available.map((item) => `
+                    <option value="${escapeHtml(item.key)}" ${item.key === active ? 'selected' : ''}>
+                        ${escapeHtml(item.displayName)} (${escapeHtml(item.key)})
+                    </option>
+                `).join('');
+            } catch (err) {
+                console.error('Không thể tải danh sách scenarios', err);
+            }
         };
 
         const setDetail = ({ kind = '-', id = '-', to = '-', type = '-', attrs = {} }) => {
@@ -690,6 +729,49 @@
             buildNetwork();
         });
 
+        const loadSubGraph = async () => {
+            if (!state.selectedNodeId) return;
+            loadingOverlay.style.display = 'grid';
+            setStatus('loading', `Đang tải k-hop subgraph cho node ${state.selectedNodeId}...`);
+            try {
+                const res = await safeJson(`/api/graph/subgraph?nodeId=${encodeURIComponent(state.selectedNodeId)}&depth=2`);
+                state.graph = res.data || { nodes: [], edges: [] };
+                ensureTypeColors();
+                renderSummary();
+                renderTypeLegend();
+                renderFilterControls();
+                renderTypeBreakdown();
+                buildNetwork();
+                setStatus('ok', `Đang hiển thị k-hop subgraph (${state.graph.nodes.length} nodes)`);
+                loadingOverlay.style.display = 'none';
+            } catch (err) {
+                console.error(err);
+                setStatus('warn', 'Tải subgraph thất bại');
+                loadingOverlay.style.display = 'none';
+            }
+        };
+
+        if (scenarioSelect) {
+            scenarioSelect.addEventListener('change', async (e) => {
+                const selectedKey = e.target.value;
+                if (!selectedKey) return;
+                try {
+                    setStatus('loading', 'Đang chuyển kịch bản...');
+                    await postJson(`/api/detection/switch-scenario?scenarioKey=${encodeURIComponent(selectedKey)}`);
+                    await loadProfileAndScenarios();
+                    setStatus('ok', 'Đã đổi Scenario');
+                } catch (err) {
+                    console.error(err);
+                    alert('Không thể đổi scenario: ' + err.message);
+                    setStatus('warn', 'Lỗi đổi Scenario');
+                }
+            });
+        }
+
+        if (khopSubgraphButton) {
+            khopSubgraphButton.addEventListener('click', loadSubGraph);
+        }
+
         deleteNodeButton.addEventListener('click', deleteSelectedNode);
 
         window.addEventListener('themechange', () => {
@@ -700,6 +782,7 @@
 
         setDetail({});
         updateDeleteButtonState();
+        loadProfileAndScenarios();
         loadDashboard();
     </script>
 </body>

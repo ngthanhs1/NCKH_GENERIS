@@ -111,6 +111,63 @@ public class GraphQueryService {
         return new GraphData<>(nodes, edges);
     }
 
+    public GraphData<NodeDTO<Map<String, Object>>, EdgeDTO<Map<String, Object>>> fetchSubGraph(String centerId, int depth) {
+        String normalizedCenter = normalizeId(centerId);
+        if (normalizedCenter == null) {
+            return fetchGraph();
+        }
+        int maxHops = Math.max(1, Math.min(depth, 5));
+
+        Collection<Map<String, Object>> rawNodes = neo4j.query("""
+                MATCH (center:Node {id: $centerId})
+                MATCH p = (center)-[:RELATION*0..""" + maxHops + " ]-(n:Node)\n" + """
+                WITH DISTINCT n
+                RETURN n.id AS id,
+                       n.type AS type,
+                       properties(n) AS props
+                ORDER BY id
+                """)
+                .bind(normalizedCenter).to("centerId")
+                .fetch().all();
+
+        Collection<Map<String, Object>> rawEdges = neo4j.query("""
+                MATCH (center:Node {id: $centerId})
+                MATCH p = (center)-[:RELATION*0..""" + maxHops + " ]-(a:Node)\n" + """
+                MATCH (a)-[r:RELATION]->(b:Node)
+                MATCH p2 = (center)-[:RELATION*0..""" + maxHops + " ]-(b)\n" + """
+                WITH DISTINCT a, r, b
+                RETURN a.id AS `from`,
+                       b.id AS `to`,
+                       r.type AS relation,
+                       properties(r) AS props
+                """)
+                .bind(normalizedCenter).to("centerId")
+                .fetch().all();
+
+        List<NodeDTO<Map<String, Object>>> nodes = new ArrayList<>(rawNodes.size());
+        for (Map<String, Object> row : rawNodes) {
+            Map<String, Object> attributes = toAttributes(row.get("props"), "id", "type");
+            nodes.add(new NodeDTO<>(
+                    row.get("id"),
+                    (String) row.get("type"),
+                    attributes
+            ));
+        }
+
+        List<EdgeDTO<Map<String, Object>>> edges = new ArrayList<>(rawEdges.size());
+        for (Map<String, Object> row : rawEdges) {
+            Map<String, Object> attributes = toAttributes(row.get("props"), "type");
+            edges.add(new EdgeDTO<>(
+                    row.get("from"),
+                    row.get("to"),
+                    (String) row.get("relation"),
+                    attributes
+            ));
+        }
+
+        return new GraphData<>(nodes, edges);
+    }
+
     private Set<String> fetchExistingNodeIds() {
         Collection<String> ids = neo4j.query("""
                 MATCH (n:Node)
